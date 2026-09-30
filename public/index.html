@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YT Music — Listen Along</title>
+  <meta name="description" content="Join a Listen Along party and listen to YouTube Music in sync with your friends." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/index.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="header-inner">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 18V5l12-2v13" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="18" cy="16" r="3" />
+            </svg>
+          </div>
+          <div>
+            <div class="brand-name">Listen Along</div>
+            <div class="brand-sub">YouTube Music · Active Parties</div>
+          </div>
+        </div>
+        <div class="status-pill">
+          <span class="status-dot"></span>
+          <span id="status-text">Connecting…</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="hero">
+      <h1>Listen Together,<br/>Everywhere</h1>
+      <p>Join an active party and sync your music experience with friends in real time.</p>
+    </section>
+
+    <div class="section-header">
+      <span class="section-title">Active Parties</span>
+      <span class="party-count-badge" id="party-count">0 live</span>
+    </div>
+
+    <div class="party-grid" id="party-grid">
+      <!-- Skeleton loader -->
+      <div class="party-card" style="pointer-events:none">
+        <div class="card-top">
+          <div class="skeleton" style="width:56px;height:56px;border-radius:10px"></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+            <div class="skeleton" style="height:14px;width:70%"></div>
+            <div class="skeleton" style="height:12px;width:50%"></div>
+          </div>
+        </div>
+        <div class="skeleton" style="height:32px;border-radius:8px"></div>
+      </div>
+    </div>
+
+    <footer>
+      Powered by <a href="https://github.com/nubsuki/YouTube-Music-Player" target="_blank">YouTube Music Player</a>
+      &nbsp;·&nbsp; Open a party from the app to appear here
+    </footer>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io({ transports: ['websocket', 'polling'] });
+    const grid = document.getElementById('party-grid');
+    const countBadge = document.getElementById('party-count');
+    const statusText = document.getElementById('status-text');
+
+    let parties = [];
+
+    const musicNoteSvg = `
+      <svg class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 18V5l12-2v13" />
+        <circle cx="6" cy="18" r="3" />
+        <circle cx="18" cy="16" r="3" />
+      </svg>
+    `;
+
+    const pauseSvg = `
+      <svg class="icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+        <rect x="6" y="4" width="4" height="16" rx="1" />
+        <rect x="14" y="4" width="4" height="16" rx="1" />
+      </svg>
+    `;
+
+    const usersSvg = `
+      <svg class="icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    `;
+
+    const headphonesSvg = `
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+      </svg>
+    `;
+
+    function getInitials(name) {
+      return (name || '?').slice(0, 2).toUpperCase();
+    }
+
+    function escHtml(str) {
+      return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function buildCard(party) {
+      const { id, hostName, state, memberCount } = party;
+      const hasSong = state && state.song;
+      const thumbHtml = state && state.thumbnail
+        ? `<img src="${state.thumbnail}" alt="thumbnail" onerror="this.style.display='none'" />`
+        : musicNoteSvg;
+
+      return `
+        <a class="party-card" href="/party/${id}">
+          <div class="card-top">
+            <div class="song-thumb">${thumbHtml}</div>
+            <div class="song-info">
+              <div class="song-title">${hasSong ? escHtml(state.song) : 'Loading song…'}</div>
+              <div class="song-artist">${hasSong && state.artist ? escHtml(state.artist) : ''}</div>
+              ${state && state.isPlaying ? `
+                <div class="playing-badge">
+                  <div class="playing-bars"><span></span><span></span><span></span></div>
+                  Playing
+                </div>` : `<div class="playing-badge" style="color:var(--text-muted)">${pauseSvg} Paused</div>`}
+            </div>
+          </div>
+          <div class="card-footer">
+            <div class="host-info">
+              <div class="host-avatar">${getInitials(hostName)}</div>
+              <span class="host-name">${escHtml(hostName)}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <div class="member-count">${usersSvg} ${memberCount}</div>
+              <div class="join-btn">Join →</div>
+            </div>
+          </div>
+        </a>
+      `;
+    }
+
+    function render() {
+      countBadge.textContent = `${parties.length} live`;
+      if (parties.length === 0) {
+        grid.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">${headphonesSvg}</div>
+            <h3>No active parties</h3>
+            <p>Open the YouTube Music app, go to <strong>Listen Along</strong> in the menu, and start a party to appear here.</p>
+          </div>`;
+        return;
+      }
+      grid.innerHTML = parties.map(buildCard).join('');
+    }
+
+    socket.on('connect', () => {
+      statusText.textContent = 'Connected';
+      socket.emit('dashboard:subscribe');
+    });
+
+    socket.on('disconnect', () => {
+      statusText.textContent = 'Reconnecting…';
+    });
+
+    socket.on('dashboard:init', ({ parties: list }) => {
+      parties = list;
+      render();
+    });
+
+    socket.on('dashboard:update', ({ parties: list }) => {
+      parties = list;
+      render();
+    });
+
+    socket.on('dashboard:party-added', (party) => {
+      if (!parties.find(p => p.id === party.id)) parties.unshift(party);
+      render();
+    });
+
+    socket.on('dashboard:party-updated', (party) => {
+      const idx = parties.findIndex(p => p.id === party.id);
+      if (idx !== -1) parties[idx] = party;
+      else parties.unshift(party);
+      render();
+    });
+
+    socket.on('dashboard:party-removed', ({ partyId }) => {
+      parties = parties.filter(p => p.id !== partyId);
+      render();
+    });
+  </script>
+</body>
+</html>
