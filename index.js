@@ -5,30 +5,125 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: '*', methods: ['GET', 'POST', 'DELETE'] },
-});
 
 const PORT = process.env.PORT || 3000;
 const MAX_MEMBERS = parseInt(process.env.MAX_MEMBERS || '50');
+const MAX_PARTIES = parseInt(process.env.MAX_PARTIES || '500');
+
+/* Security headers */
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'", 'wss:', 'ws:'],
+      imgSrc: ["'self'", 'data:', 'https://lh3.googleusercontent.com', 'https://i.ytimg.com', 'https://yt3.ggpht.com'],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+const io = new Server(server, {
+  cors: { origin: '*', methods: ['GET', 'POST', 'DELETE'] },
+  maxHttpBufferSize: 1e5, // 100 KB max socket payload
+  pingTimeout: 30000,
+  pingInterval: 25000,
+  connectTimeout: 10000,
+});
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+/* Rate limiting */
+const createPartyLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many parties created. Please wait a minute.' },
+});
+
+const lookupLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests.' },
+});
 
 // In-memory party store
 // Map<partyId, Party>
 // Party: { id, hostSocketId, hostToken, hostName, createdAt, state, members[] }
 const parties = new Map();
 
+// Track connections per IP for Socket.IO rate limiting
+const ipConnectionCount = new Map();
+const MAX_CONNECTIONS_PER_IP = 10;
+
+/* Sanitize a string: strip HTML chars, trim, enforce max length */
+function sanitizeStr(str, maxLen = 64) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/[<>"'&]/g, '')
+    .trim()
+    .slice(0, maxLen);
+}
+
+/* Validate thumbnail is from a trusted YouTube CDN */
+function isSafeThumbnail(url) {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === 'https:' &&
+      /^(lh3\.googleusercontent\.com|i\.ytimg\.com|yt3\.ggpht\.com)$/.test(parsed.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/* Validate a YouTube Music URL for guest sync */
+function isSafeYtMusicUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === 'https:' &&
+      /^(music\.youtube\.com|www\.youtube\.com)$/.test(parsed.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 function generatePartyId() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let id = '';
   for (let i = 0; i < 6; i++) id += chars[Math.floor(Math.random() * chars.length)];
   return id;
+}
+
+/* Sanitize state received from host before storing / broadcasting */
+function sanitizeState(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+  return {
+    song:        sanitizeStr(raw.song, 200),
+    artist:      sanitizeStr(raw.artist, 200),
+    url:         isSafeYtMusicUrl(raw.url) ? raw.url : '',
+    thumbnail:   isSafeThumbnail(raw.thumbnail) ? raw.thumbnail : '',
+    isPlaying:   Boolean(raw.isPlaying),
+    currentTime: Number.isFinite(Number(raw.currentTime)) ? Math.max(0, Number(raw.currentTime)) : 0,
+    duration:    Number.isFinite(Number(raw.duration)) ? Math.max(0, Number(raw.duration)) : 0,
+  };
 }
 
 function partyPublicView(party, full = false) {
@@ -61,10 +156,14 @@ function closeParty(partyId, reason = 'Party closed') {
 // REST API
 
 // POST /api/party/create
-app.post('/api/party/create', (req, res) => {
+app.post('/api/party/create', createPartyLimiter, (req, res) => {
   const { hostName } = req.body;
   if (!hostName || typeof hostName !== 'string') {
     return res.status(400).json({ error: 'hostName is required' });
+  }
+
+  if (parties.size >= MAX_PARTIES) {
+    return res.status(503).json({ error: 'Server is at capacity. Try again later.' });
   }
 
   let partyId;
@@ -80,7 +179,7 @@ app.post('/api/party/create', (req, res) => {
     id: partyId,
     hostSocketId: null,
     hostToken,
-    hostName: hostName.trim().slice(0, 32),
+    hostName: sanitizeStr(hostName, 32),
     createdAt: Date.now(),
     state: {
       song: '',
@@ -110,7 +209,7 @@ app.post('/api/party/create', (req, res) => {
 });
 
 // GET /api/parties
-app.get('/api/parties', (_req, res) => {
+app.get('/api/parties', lookupLimiter, (_req, res) => {
   const list = [];
   for (const [, party] of parties) {
     if (party.hostSocketId) list.push(partyPublicView(party));
@@ -119,7 +218,7 @@ app.get('/api/parties', (_req, res) => {
 });
 
 // GET /api/party/:id
-app.get('/api/party/:id', (req, res) => {
+app.get('/api/party/:id', lookupLimiter, (req, res) => {
   const party = parties.get(req.params.id.toUpperCase());
   if (!party) return res.status(404).json({ error: 'Party not found' });
   res.json(partyPublicView(party, true));
@@ -140,12 +239,29 @@ app.get('/party/:id', (_req, res) => {
 });
 
 // Socket.IO
+
+/* Connection rate limiting per IP */
+io.use((socket, next) => {
+  const ip = socket.handshake.address;
+  const count = (ipConnectionCount.get(ip) || 0) + 1;
+  if (count > MAX_CONNECTIONS_PER_IP) {
+    return next(new Error('Too many connections from this IP'));
+  }
+  ipConnectionCount.set(ip, count);
+  socket.on('disconnect', () => {
+    const c = (ipConnectionCount.get(ip) || 1) - 1;
+    if (c <= 0) ipConnectionCount.delete(ip);
+    else ipConnectionCount.set(ip, c);
+  });
+  next();
+});
+
 io.on('connection', (socket) => {
   console.log(`[Socket] Connected: ${socket.id}`);
 
   // Host registers their socket
   socket.on('party:host-connect', ({ partyId, hostToken }) => {
-    const id = (partyId || '').toUpperCase();
+    const id = (partyId || '').toUpperCase().slice(0, 6);
     const party = parties.get(id);
     if (!party || party.hostToken !== hostToken) {
       socket.emit('party:error', { message: 'Invalid party ID or token' });
@@ -163,9 +279,9 @@ io.on('connection', (socket) => {
     io.to('dashboard').emit('dashboard:party-added', partyPublicView(party));
   });
 
-  // Member joins via web page
+  // Member joins via app
   socket.on('party:join', ({ partyId, displayName }) => {
-    const id = (partyId || '').toUpperCase();
+    const id = (partyId || '').toUpperCase().slice(0, 6);
     const party = parties.get(id);
 
     if (!party) {
@@ -181,7 +297,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const name = (displayName || 'Listener').trim().slice(0, 24) || 'Listener';
+    const name = sanitizeStr(displayName || 'Listener', 24) || 'Listener';
     const member = { socketId: socket.id, name };
     party.members.push(member);
 
@@ -211,11 +327,12 @@ io.on('connection', (socket) => {
 
   // Host broadcasts playback state
   socket.on('party:state-update', ({ partyId, hostToken, state }) => {
-    const id = (partyId || '').toUpperCase();
+    const id = (partyId || '').toUpperCase().slice(0, 6);
     const party = parties.get(id);
     if (!party || party.hostToken !== hostToken) return;
 
-    party.state = { ...party.state, ...state };
+    const safeState = sanitizeState(state);
+    party.state = { ...party.state, ...safeState };
 
     socket.to(`party:${id}`).emit('party:sync', {
       ...party.state,
@@ -223,8 +340,8 @@ io.on('connection', (socket) => {
       memberCount: party.members.length,
     });
 
-    // Throttled dashboard update (only when song changes)
-    if (state.song !== undefined) {
+    // Update dashboard only when song changes
+    if (safeState.song !== undefined) {
       io.to('dashboard').emit('dashboard:party-updated', partyPublicView(party));
     }
   });
@@ -241,12 +358,12 @@ io.on('connection', (socket) => {
 
   // Web party page watches a specific party (not a full member join)
   socket.on('party:watch', ({ partyId }) => {
-    const id = (partyId || '').toUpperCase();
+    const id = (partyId || '').toUpperCase().slice(0, 6);
     if (parties.has(id)) {
       socket.join(`party:${id}`);
       socket.data.partyId = id;
-      socket.data.isHost  = false;
-      // Don't add to members list — watcher only
+      socket.data.isHost = false;
+      // Watcher only — not added to members list
     }
   });
 
@@ -273,5 +390,6 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
   console.log(`\nYT Music Sync Server`);
   console.log(`   Running on http://localhost:${PORT}`);
-  console.log(`   Max members per party: ${MAX_MEMBERS}\n`);
+  console.log(`   Max members per party: ${MAX_MEMBERS}`);
+  console.log(`   Max active parties: ${MAX_PARTIES}\n`);
 });

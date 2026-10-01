@@ -111,11 +111,24 @@
       return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    /* Escape a URL for use inside an HTML attribute */
+    function escUrl(url) {
+      if (!url || typeof url !== 'string') return '';
+      try {
+        const parsed = new URL(url);
+        if (!['https:', 'http:'].includes(parsed.protocol)) return '';
+        return escHtml(url);
+      } catch {
+        return '';
+      }
+    }
+
     function buildCard(party) {
       const { id, hostName, state, memberCount } = party;
       const hasSong = state && state.song;
-      const thumbHtml = state && state.thumbnail
-        ? `<img src="${state.thumbnail}" alt="thumbnail" onerror="this.style.display='none'" />`
+      const safeThumb = state && state.thumbnail ? escUrl(state.thumbnail) : '';
+      const thumbHtml = safeThumb
+        ? `<img src="${safeThumb}" alt="thumbnail" onerror="this.style.display='none'" />`
         : musicNoteSvg;
 
       return `

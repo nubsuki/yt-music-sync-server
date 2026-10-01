@@ -96,6 +96,18 @@
       return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    /* Escape a URL for use inside an HTML attribute */
+    function escUrl(url) {
+      if (!url || typeof url !== 'string') return '';
+      try {
+        const parsed = new URL(url);
+        if (!['https:', 'http:'].includes(parsed.protocol)) return '';
+        return escHtml(url);
+      } catch {
+        return '';
+      }
+    }
+
     function showToast(msg, duration = 3000) {
       toast.textContent = msg;
       toast.classList.add('show');
@@ -134,8 +146,9 @@
     function renderParty(data) {
       const { id, hostName, state, members } = data;
       const hasSong = state && state.song;
-      const thumbHtml = state && state.thumbnail
-        ? `<img src="${state.thumbnail}" alt="thumbnail" onerror="this.style.display='none'" />`
+      const safeThumb = state && state.thumbnail ? escUrl(state.thumbnail) : '';
+      const thumbHtml = safeThumb
+        ? `<img src="${safeThumb}" alt="thumbnail" onerror="this.style.display='none'" />`
         : musicNoteSvg;
 
       document.title = `${hostName}'s Party (${id}) — Listen Along`;
@@ -214,7 +227,10 @@
       if (songEl && state.song) songEl.textContent = state.song;
       if (artistEl && state.artist !== undefined) artistEl.textContent = state.artist;
       if (thumbEl && state.thumbnail) {
-        thumbEl.innerHTML = `<img src="${state.thumbnail}" alt="thumbnail" onerror="this.style.display='none'" />`;
+        const safeThumb = escUrl(state.thumbnail);
+        if (safeThumb) {
+          thumbEl.innerHTML = `<img src="${safeThumb}" alt="thumbnail" onerror="this.style.display='none'" />`;
+        }
       }
       if (statusEl) {
         statusEl.innerHTML = state.isPlaying
