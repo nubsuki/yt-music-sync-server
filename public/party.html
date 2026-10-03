@@ -133,16 +133,19 @@
     }
 
     function copyPartyCode() {
-      navigator.clipboard.writeText(partyId).then(() => {
-        const btn = document.getElementById('copy-btn');
-        if (btn) btn.innerHTML = `${checkSvg} Party Code Copied!`;
-        showToast(`Code ${partyId} copied! Paste it into YouTube Music.`);
-        setTimeout(() => {
-          if (btn) btn.innerHTML = `${copySvg} Copy Party Code to Join`;
-        }, 3000);
-      }).catch(() => {
-        showToast(`Party Code: ${partyId}`);
-      });
+      const btn = document.getElementById('copy-btn');
+      
+      navigator.clipboard.writeText(partyId)
+        .then(() => {
+          if (btn) btn.innerHTML = `${checkSvg} Party Code Copied!`;
+          showToast(`Code ${partyId} copied! Open YouTube Music Player and paste it.`);
+          setTimeout(() => {
+            if (btn) btn.innerHTML = `${copySvg} Copy Party Code to Join`;
+          }, 3000);
+        })
+        .catch(() => {
+          showToast(`Party Code: ${partyId}`);
+        });
     }
 
     function renderParty(data) {
@@ -265,12 +268,6 @@
         partyState = await res.json();
         renderParty(partyState);
 
-        try {
-          await navigator.clipboard.writeText(partyId);
-          showToast(`Party code ${partyId} copied to clipboard!`);
-        } catch (e) {
-          // Clipboard write without gesture can be blocked by browsers; the button handles manual copy
-        }
 
         socket = io({ transports: ['websocket', 'polling'] });
 
