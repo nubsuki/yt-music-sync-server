@@ -20,11 +20,15 @@
       <div class="header-inner">
         <div class="brand">
           <div class="brand-icon">
-            <svg class="icon" width="22" height="22" viewBox="-51 -51 639.37581 639.37581" xmlns="http://www.w3.org/2000/svg">
+            <svg class="icon" width="22" height="22" viewBox="-51 -51 639.37581 639.37581"
+              xmlns="http://www.w3.org/2000/svg">
               <g transform="translate(-78.633624,-113.7434)">
-                <ellipse style="fill:#ee6070;stroke:#333333;stroke-width:12.4878;stroke-linecap:round" cx="347.32153" cy="382.43121" rx="310.94644" ry="310.94635" />
-                <path style="fill:none;stroke:#333333;stroke-width:12.4878;stroke-linecap:round" d="m 558.88598,241.31256 c 9.13033,13.51474 16.99435,27.95535 23.42185,43.15149 12.85489,30.39228 19.96328,63.80691 19.96328,98.88179 0,140.29954 -113.73531,254.03481 -254.03489,254.03481 -140.29961,0 -254.034924,-113.73527 -254.034924,-254.03481 0,-140.29953 113.735314,-254.03481 254.034924,-254.03481 17.5375,0 34.65981,1.77717 51.1969,5.16109 m 47.68492,14.80219 c 30.3923,12.85479 57.76234,31.45618 80.74797,54.4418" />
-                <ellipse style="fill:none;stroke:#ffffff;stroke-width:24.9756" cx="351.9353" cy="387.04495" rx="151.0679" ry="151.06786" />
+                <ellipse style="fill:#ee6070;stroke:#333333;stroke-width:12.4878;stroke-linecap:round" cx="347.32153"
+                  cy="382.43121" rx="310.94644" ry="310.94635" />
+                <path style="fill:none;stroke:#333333;stroke-width:12.4878;stroke-linecap:round"
+                  d="m 558.88598,241.31256 c 9.13033,13.51474 16.99435,27.95535 23.42185,43.15149 12.85489,30.39228 19.96328,63.80691 19.96328,98.88179 0,140.29954 -113.73531,254.03481 -254.03489,254.03481 -140.29961,0 -254.034924,-113.73527 -254.034924,-254.03481 0,-140.29953 113.735314,-254.03481 254.034924,-254.03481 17.5375,0 34.65981,1.77717 51.1969,5.16109 m 47.68492,14.80219 c 30.3923,12.85479 57.76234,31.45618 80.74797,54.4418" />
+                <ellipse style="fill:none;stroke:#ffffff;stroke-width:24.9756" cx="351.9353" cy="387.04495"
+                  rx="151.0679" ry="151.06786" />
                 <path style="fill:#ffffff" d="M 292.18101,298.84207 447.41816,382.58576 292.1832,466.02055 Z" />
               </g>
             </svg>
@@ -145,7 +149,7 @@
       const hasSong = state && state.song;
       const safeThumb = state && state.thumbnail ? escUrl(state.thumbnail) : '';
       const thumbHtml = safeThumb
-        ? `<img src="${safeThumb}" alt="thumbnail" onerror="this.style.display='none'" />`
+        ? `<img src="${safeThumb}" alt="thumbnail" class="party-thumb-img" />`
         : musicNoteSvg;
 
       return `
@@ -188,6 +192,13 @@
         return;
       }
       grid.innerHTML = parties.map(buildCard).join('');
+
+      const images = grid.querySelectorAll('.party-thumb-img');
+      images.forEach(img => {
+        img.addEventListener('error', function () {
+          this.style.display = 'none';
+        });
+      });
     }
 
     socket.on('connect', () => {

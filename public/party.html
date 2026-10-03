@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,9 +9,11 @@
   <link rel="icon" type="image/svg+xml" href="/icon.svg" />
   <link rel="icon" type="image/x-icon" href="/favicon.ico" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet" />
   <link rel="stylesheet" href="/party.css" />
 </head>
+
 <body>
   <a class="back-link" href="/">← All Parties</a>
 
@@ -134,7 +137,7 @@
 
     function copyPartyCode() {
       const btn = document.getElementById('copy-btn');
-      
+
       navigator.clipboard.writeText(partyId)
         .then(() => {
           if (btn) btn.innerHTML = `${checkSvg} Party Code Copied!`;
@@ -153,7 +156,7 @@
       const hasSong = state && state.song;
       const safeThumb = state && state.thumbnail ? escUrl(state.thumbnail) : '';
       const thumbHtml = safeThumb
-        ? `<img src="${safeThumb}" alt="thumbnail" onerror="this.style.display='none'" />`
+        ? `<img src="${safeThumb}" alt="thumbnail" id="party-thumb-img" />`
         : musicNoteSvg;
 
       document.title = `${hostName}'s Party (${id}) — Listen Along`;
@@ -161,7 +164,7 @@
       card.innerHTML = `
         <div class="party-header">
           <div class="party-label">Party Code</div>
-          <div class="party-id-box" onclick="copyPartyCode()" title="Click to copy">
+          <div class="party-id-box" id="party-id-box" title="Click to copy">
             <div class="party-id">${escHtml(id)}</div>
           </div>
           <div class="host-line">Hosted by <strong>${escHtml(hostName)}</strong></div>
@@ -179,8 +182,8 @@
           </div>
           <div class="np-status" id="np-status">
             ${state && state.isPlaying
-              ? `<div class="playing-bars"><span></span><span></span><span></span></div>`
-              : pauseSvg}
+          ? `<div class="playing-bars"><span></span><span></span><span></span></div>`
+          : pauseSvg}
           </div>
         </div>
 
@@ -195,7 +198,7 @@
         </div>
 
         <div class="join-action-wrap">
-          <button class="copy-code-btn" id="copy-btn" onclick="copyPartyCode()">
+          <button class="copy-code-btn" id="copy-btn">
             ${copySvg} Copy Party Code to Join
           </button>
 
@@ -220,6 +223,19 @@
           </div>
         </div>
       `;
+
+      const idBox = document.getElementById('party-id-box');
+      if (idBox) idBox.addEventListener('click', copyPartyCode);
+
+      const copyBtn = document.getElementById('copy-btn');
+      if (copyBtn) copyBtn.addEventListener('click', copyPartyCode);
+
+      const thumbImg = document.getElementById('party-thumb-img');
+      if (thumbImg) {
+        thumbImg.addEventListener('error', function () {
+          this.style.display = 'none';
+        });
+      }
     }
 
     function updateNowPlaying(state) {
@@ -234,7 +250,13 @@
       if (thumbEl && state.thumbnail) {
         const safeThumb = escUrl(state.thumbnail);
         if (safeThumb) {
-          thumbEl.innerHTML = `<img src="${safeThumb}" alt="thumbnail" onerror="this.style.display='none'" />`;
+          thumbEl.innerHTML = `<img src="${safeThumb}" alt="thumbnail" id="dynamic-thumb-img" />`;
+          const dynamicImg = document.getElementById('dynamic-thumb-img');
+          if (dynamicImg) {
+            dynamicImg.addEventListener('error', function () {
+              this.style.display = 'none';
+            });
+          }
         }
       }
       if (statusEl) {
@@ -312,4 +334,5 @@
     init();
   </script>
 </body>
+
 </html>
