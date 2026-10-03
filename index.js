@@ -416,14 +416,22 @@ io.on("connection", (socket) => {
     socket.emit("dashboard:init", { parties: list });
   });
 
-  // Web party page watches a specific party (not a full member join)
+  // Web party page watches a specific party
   socket.on("party:watch", ({ partyId }) => {
     const id = (partyId || "").toUpperCase().slice(0, 6);
-    if (parties.has(id)) {
+    const party = parties.get(id);
+    if (party) {
       socket.join(`party:${id}`);
       socket.data.partyId = id;
       socket.data.isHost = false;
-      // Watcher only — not added to members list
+      // Send current state
+      if (party.state && party.state.song) {
+        socket.emit("party:sync", {
+          ...party.state,
+          members: party.members.map((m) => ({ name: m.name })),
+          memberCount: party.members.length,
+        });
+      }
     }
   });
 
