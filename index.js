@@ -296,6 +296,13 @@ io.use((socket, next) => {
 io.on("connection", (socket) => {
   console.log(`[Socket] Connected: ${socket.id}`);
 
+  // Clock sync
+  socket.on("clock:ping", ({ t1 }, ack) => {
+    if (typeof ack === "function") {
+      ack({ t1, t2: Date.now() });
+    }
+  });
+
   // Host registers their socket
   socket.on("party:host-connect", ({ partyId, hostToken }) => {
     const id = (partyId || "").toUpperCase().slice(0, 6);
@@ -376,10 +383,16 @@ io.on("connection", (socket) => {
     if (!party || party.hostToken !== hostToken) return;
 
     const safeState = sanitizeState(state);
-    party.state = { ...party.state, ...safeState };
+    // Use host-provided timestamp or fall back to now
+    const serverTimestamp = Number.isFinite(Number(state?.serverTimestamp))
+      ? Number(state.serverTimestamp)
+      : Date.now();
+
+    party.state = { ...party.state, ...safeState, serverTimestamp };
 
     socket.to(`party:${id}`).emit("party:sync", {
       ...party.state,
+      serverTimestamp,
       members: party.members.map((m) => ({ name: m.name })),
       memberCount: party.members.length,
     });
