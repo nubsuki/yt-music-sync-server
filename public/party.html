@@ -141,7 +141,7 @@
       }
       return members.map(m => `
         <div class="member-chip">
-          <div class="member-avatar">${getInitials(m.name)}</div>
+          <img class="member-avatar" src="https://api.dicebear.com/9.x/constellation/svg?seed=${encodeURIComponent(m.name)}" alt="avatar" />
           ${escHtml(m.name)}
         </div>`).join('');
     }

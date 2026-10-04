@@ -185,7 +185,7 @@
           </div>
           <div class="card-footer">
             <div class="host-info">
-              <div class="host-avatar">${getInitials(hostName)}</div>
+              <img class="host-avatar" src="https://api.dicebear.com/9.x/constellation/svg?seed=${encodeURIComponent(hostName)}" alt="avatar" />
               <span class="host-name">${escHtml(hostName)}</span>
             </div>
             <div style="display:flex;align-items:center;gap:12px">
