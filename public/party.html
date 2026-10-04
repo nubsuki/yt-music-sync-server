@@ -141,7 +141,7 @@
       }
       return members.map(m => `
         <div class="member-chip">
-          <img class="member-avatar" src="https://api.dicebear.com/9.x/constellation/svg?seed=${encodeURIComponent(m.name)}" alt="avatar" />
+          <img class="member-avatar" crossorigin="anonymous" src="https://api.dicebear.com/10.x/constellation/svg?backgroundColor=1c1c1f&constellationColor=f0f0f2&seed=${encodeURIComponent(m.name)}" alt="avatar" />
           ${escHtml(m.name)}
         </div>`).join('');
     }
