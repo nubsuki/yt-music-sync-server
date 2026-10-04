@@ -166,6 +166,7 @@ function partyPublicView(party, full = false) {
           song: party.state.song,
           artist: party.state.artist,
           thumbnail: party.state.thumbnail,
+          url: party.state.url,
           isPlaying: party.state.isPlaying,
         },
     ...(full ? { members: party.members.map((m) => ({ name: m.name })) } : {}),
