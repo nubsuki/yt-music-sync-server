@@ -113,6 +113,17 @@
       }
     }
 
+    function extractVideoId(url) {
+      if (!url) return null;
+      try {
+        const parsed = new URL(url);
+        return parsed.searchParams.get('v');
+      } catch {
+        const match = url.match(/[?&]v=([^&#]+)/);
+        return match ? match[1] : null;
+      }
+    }
+
     function showToast(msg, duration = 3000) {
       toast.textContent = msg;
       toast.classList.add('show');
@@ -154,7 +165,13 @@
     function renderParty(data) {
       const { id, hostName, state, members } = data;
       const hasSong = state && state.song;
-      const safeThumb = state && state.thumbnail ? escUrl(state.thumbnail) : '';
+      
+      const videoId = state && state.url ? extractVideoId(state.url) : null;
+      let safeThumb = state && state.thumbnail ? escUrl(state.thumbnail) : '';
+      if (!safeThumb && videoId) {
+        safeThumb = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+      }
+
       const thumbHtml = safeThumb
         ? `<img src="${safeThumb}" alt="thumbnail" id="party-thumb-img" />`
         : musicNoteSvg;
