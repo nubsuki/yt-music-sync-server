@@ -32,6 +32,7 @@ app.use(
           "https://lh3.googleusercontent.com",
           "https://i.ytimg.com",
           "https://yt3.ggpht.com",
+          "https://api.dicebear.com",
         ],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
