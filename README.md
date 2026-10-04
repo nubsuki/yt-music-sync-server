@@ -9,6 +9,11 @@ It also serves a public web dashboard where anyone can view active parties and t
 - **Real-time Synchronization:** Sub-second playback sync via Socket.IO.
 - **Web Dashboard:** Beautiful public UI to see live parties and now playing status.
 
+![Main Dashboard](assets/main%20dashboard.png)
+![Party View](assets/party%20in%20webpage.png)
+![Listen Along App](assets/join%20windows.png)
+![Discord Integration](assets/discordstatus.png)
+
 ---
 
 ## Getting Started
